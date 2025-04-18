@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform, exit; // Ajout de exit ici
 import 'package:provider/provider.dart';
-import '../theme_manager.dart';
+import 'package:projet/core/theme/theme_manager.dart';
 import '../views/statistics_view.dart';
 import '../views/import_export_view.dart'; // Ajout pour Import/Export
 

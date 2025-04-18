@@ -1,58 +1,70 @@
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 
-enum LogLevel { debug, info, warning, error }
-
+/// Classe utilitaire pour la journalisation avec différents niveaux de sévérité
 class Logger {
-  static final Logger _instance = Logger._internal();
-  factory Logger() => _instance;
+  final String _tag;
   
-  Logger._internal();
+  /// Constructeur avec tag optionnel pour identifier la source des logs
+  Logger([this._tag = 'FlashcardsApp']);
   
-  File? _logFile;
-  bool _consoleOutput = true;
-  LogLevel _minimumLevel = LogLevel.info;
-
-  Future<void> init() async {
-    if (_logFile != null) return;
-    
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      _logFile = File('${dir.path}/flashcards_app.log');
-    } catch (e) {
-      print('Impossible d\'initialiser le fichier de log: $e');
-    }
+  /// Log de niveau information
+  void info(String message) {
+    _log('INFO', message);
   }
   
-  void setMinimumLevel(LogLevel level) {
-    _minimumLevel = level;
+  /// Log de niveau débogage
+  void debug(String message) {
+    _log('DEBUG', message);
   }
   
-  void enableConsoleOutput(bool enable) {
-    _consoleOutput = enable;
+  /// Log de niveau avertissement
+  void warning(String message) {
+    _log('WARNING', message);
   }
-
-  Future<void> log(String message, {LogLevel level = LogLevel.info}) async {
-    if (level.index < _minimumLevel.index) return;
+  
+  /// Log de niveau erreur
+  void error(String message) {
+    _log('ERROR', message);
+  }
+  
+  /// Méthode interne pour formater et envoyer les logs
+  void _log(String level, String message) {
+    final formattedMessage = '[$_tag][$level] $message';
     
-    final timestamp = DateTime.now().toIso8601String();
-    final logEntry = '[$timestamp] ${level.toString().split('.').last}: $message';
-    
-    if (_consoleOutput) {
-      print(logEntry);
-    }
-    
-    if (_logFile != null) {
-      try {
-        await _logFile!.writeAsString('$logEntry\n', mode: FileMode.append);
-      } catch (e) {
-        print('Erreur d\'écriture dans le fichier de log: $e');
+    if (kDebugMode) {
+      if (level == 'ERROR') {
+        print('\x1B[31m$formattedMessage\x1B[0m'); // Rouge pour les erreurs
+      } else if (level == 'WARNING') {
+        print('\x1B[33m$formattedMessage\x1B[0m'); // Jaune pour les avertissements
+      } else if (level == 'DEBUG') {
+        print('\x1B[36m$formattedMessage\x1B[0m'); // Cyan pour le débogage
+      } else {
+        print('\x1B[32m$formattedMessage\x1B[0m'); // Vert pour les infos
       }
+      
+      // Utiliser également dart:developer pour une meilleure visibilité dans DevTools
+      developer.log(
+        message,
+        name: _tag,
+        level: _getLevelValue(level),
+      );
     }
   }
   
-  void debug(String message) => log(message, level: LogLevel.debug);
-  void info(String message) => log(message, level: LogLevel.info);
-  void warning(String message) => log(message, level: LogLevel.warning);
-  void error(String message) => log(message, level: LogLevel.error);
+  /// Convertit le niveau textuel en valeur numérique pour dart:developer
+  int _getLevelValue(String level) {
+    switch (level) {
+      case 'ERROR':
+        return 1000;
+      case 'WARNING':
+        return 800;
+      case 'INFO':
+        return 500;
+      case 'DEBUG':
+        return 300;
+      default:
+        return 500;
+    }
+  }
 }

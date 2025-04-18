@@ -29,11 +29,11 @@ class _ImportExportViewState extends State<ImportExportView> {
       final db = Provider.of<DatabaseHelper>(context, listen: false);
       
       setState(() {
-        _statusMessage = 'Génération du CSV...';
+        _statusMessage = 'Génération du fichier...';
         _progress = 0.3;
       });
       
-      final csv = await db.exportToCsv();
+      final filePath = await db.exportCardsToFile();
       
       setState(() {
         _statusMessage = 'Choix de l\'emplacement...';
@@ -54,7 +54,7 @@ class _ImportExportViewState extends State<ImportExportView> {
         });
         
         final file = File(result);
-        await file.writeAsString(csv);
+        await file.writeAsBytes(await File(filePath).readAsBytes());
         
         _logger.info('Export réussi vers: $result');
         

@@ -1,0 +1,1 @@
+// Ce fichier est un doublon, à supprimer. Utiliser shared/widgets/animated_gradient_background.dart.

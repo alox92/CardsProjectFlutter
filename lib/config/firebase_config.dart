@@ -2,8 +2,31 @@ import 'package:firebase_core/firebase_core.dart';
 import 'dart:io';
 import 'dart:convert';
 
-/// Configuration Firebase sécurisée avec chargement depuis un fichier externe
+/// Configuration pour Firebase
 class FirebaseConfig {
+  /// Identifiant de l'application web
+  static const String webAppId = 'YOUR_WEB_APP_ID';
+  /// Clé API pour web
+  static const String webApiKey = 'YOUR_WEB_API_KEY';
+  /// ID du projet
+  static const String projectId = 'flashcards-app';
+  /// ID du messager
+  static const String messagingSenderId = 'YOUR_SENDER_ID';
+  
+  /// Configuration pour Android
+  static const String androidAppId = 'YOUR_ANDROID_APP_ID';
+  
+  /// Configuration pour iOS
+  static const String iosAppId = 'YOUR_IOS_APP_ID';
+  /// Bundle ID iOS
+  static const String iosBundleId = 'com.example.flashcards';
+  
+  /// Domaine de stockage
+  static const String storageBucket = 'flashcards-app.appspot.com';
+  
+  /// Identifiant du client d'authentification
+  static const String authClientId = '';
+
   /// Obtient les options Firebase selon la plateforme
   static Future<FirebaseOptions?> getPlatformOptions() async {
     try {

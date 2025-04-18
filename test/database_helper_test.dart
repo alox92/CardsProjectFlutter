@@ -1,10 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:projet/services/database_helper.dart';
-import 'package:projet/models/flashcard.dart';
+import 'package:projet/features/flashcards/models/flashcard.dart';
 import 'package:uuid/uuid.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late DatabaseHelper dbHelper;
   var uuid = Uuid();
 
@@ -14,17 +15,13 @@ void main() {
   });
 
   setUp(() async {
-    // Utiliser un chemin de base de données en mémoire unique pour chaque test
-    // pour éviter les interférences dues aux migrations persistantes.
-    final dbPath = inMemoryDatabasePath;
-    await deleteDatabase(dbPath); // Supprimer la base précédente si elle existe
-    dbHelper = DatabaseHelper.internal(); // Utiliser le constructeur interne pour isoler
-    await dbHelper.initDb(); // Initialiser la base pour ce test
+    // Utiliser DatabaseHelper.instance ou un constructeur nommé si le constructeur par défaut n'existe pas
+    dbHelper = DatabaseHelper.instance;
+    dbHelper.enableCache(false); // Désactive le cache pour éviter les effets de bord
   });
 
   tearDown(() async {
-    // Pas besoin de supprimer explicitement si on utilise inMemoryDatabasePath
-    // et qu'on le supprime dans setUp.
+    // Pas besoin de supprimer explicitement une base de données en mémoire
   });
 
   group('DatabaseHelper Tests', () {
@@ -155,7 +152,7 @@ void main() {
        expect((await dbHelper.getAllCards()).length, 1);
 
       // Act
-       final deleteResult = await dbHelper.deleteCardByUuid(cardUuid); // Soft delete by UUID
+       final deleteResult = await dbHelper.deleteCard(testCard.id!); // Corriger l'appel à deleteCard pour passer un int non nul
        final activeCards = await dbHelper.getAllCards();
        final allCardsIncludingDeleted = await dbHelper.getAllCards(includeDeleted: true);
 

@@ -1,8 +1,8 @@
-name: projet # Add a name for the project if it doesn't exist
-description: A new Flutter project. # Add a description if it doesn't exist
-publish_to: 'none' # Prevent accidental publishing to pub.dev
+name: projet
+description: Application de flashcards avec fonctionnalités avancées pour l'apprentissage et la mémorisation.
+publish_to: 'none'
 
-version: 1.0.0+1 # Add a version if it doesn't exist
+version: 1.0.0+1
 
 environment:
   sdk: '^3.7.0'
@@ -10,22 +10,35 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    
+  # Gestion d'état
   provider: ^6.0.0
+  
+  # Base de données et stockage
   sqflite: ^2.0.0+3
-  sqflite_common_ffi: ^2.0.0 # Add this for desktop support
+  sqflite_common_ffi: ^2.0.0  # Support pour desktop
   path_provider: ^2.0.2
+  shared_preferences: ^2.0.15
+  localstorage: ^4.0.1+4  # Stockage web
+  
+  # UI et design
   flutter_svg: ^1.0.0
+  flutter_colorpicker: ^1.0.3
+  
+  # Utilitaires et formatage
   intl: ^0.17.0
-  window_manager: ^0.3.0 # Optional: Add for window control
-  shared_preferences: ^2.0.15  # Ajouté pour la persistance
-  # Dépendances Firebase nécessaires pour FirebaseManager
-  firebase_core: ^2.4.1  # Ajout
-  cloud_firestore: ^4.3.1 # Ajout
+  uuid: ^3.0.7  # Version corrigée
+  csv: ^5.1.1
+  
+  # Fonctionnalités desktop et mobile
+  window_manager: ^0.3.0
   file_picker: ^6.1.1
+  share_plus: ^10.1.4
+  
+  # Audio
   just_audio: ^0.9.36
   record: ^5.0.4
-  flutter_colorpicker: ^1.0.3 # Ajout de la dépendance
-  csv: ^5.1.1 # Ajout pour une meilleure gestion CSV
-  uuid: ^4.3.3 # Ajout pour les identifiants uniques (synchronisation)
-  share_plus: ^10.1.4
-  localstorage: ^4.0.1+4 # Ajout pour le stockage web
+  
+  # Firebase (optionnel)
+  firebase_core: ^2.4.1
+  cloud_firestore: ^4.3.1

@@ -101,5 +101,8 @@
         "/^\\s*\\*.*$/", // Ignore les commentaires multi-lignes
         "/^\\s*<!--.*-->$/", // Ignore les commentaires XML
     ],
-    "cmake.sourceDirectory": "C:/Users/Admin/Desktop/projet/windows"
+    "cmake.sourceDirectory": "C:/Users/Admin/Desktop/projet/windows",
+    "files.associations": {
+        "system_error": "cpp"
+    }
 }

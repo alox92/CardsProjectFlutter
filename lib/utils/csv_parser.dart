@@ -1,153 +1,29 @@
 import 'dart:convert';
-import '../models/flashcard.dart';
+import 'package:projet/features/flashcards/models/flashcard.dart';
 import '../utils/logger.dart';
-
-/// CsvParserException est lancée quand il y a une erreur lors du parsing CSV
-class CsvParserException implements Exception {
-  final String message;
-  final int? line;
-  final String? content;
-
-  CsvParserException(this.message, {this.line, this.content});
-
-  @override
-  String toString() {
-    String result = 'CsvParserException: $message';
-    if (line != null) {
-      result += ' (ligne $line)';
-    }
-    if (content != null) {
-      result += '\nContenu: "$content"';
-    }
-    return result;
-  }
-}
-
-/// Résultat d'une opération d'importation CSV
-class CsvImportResult {
-  final List<Flashcard> cards;
-  final List<CsvParserException> errors;
-  final int totalLinesProcessed;
-  final int successCount;
-  final int warningCount;
-
-  CsvImportResult({
-    required this.cards,
-    required this.errors,
-    required this.totalLinesProcessed,
-    required this.successCount,
-    required this.warningCount,
-  });
-
-  bool get hasErrors => errors.isNotEmpty;
-  bool get hasWarnings => warningCount > 0;
-  
-  /// Résumé textuel du résultat de l'import
-  String get summary => 
-    'Import terminé: $successCount cartes importées sur $totalLinesProcessed lignes' +
-    (hasErrors ? ', ${errors.length} erreurs' : '') +
-    (hasWarnings ? ', $warningCount avertissements' : '');
-}
+import 'csv_exceptions.dart';
+import 'csv_import_result.dart';
+import 'csv_utils.dart';
 
 /// Classe statique optimisée pour parser des fichiers CSV
 class CsvParser {
   static final Logger _logger = Logger();
 
   /// Parse une ligne CSV et retourne les champs séparés
-  /// La ligne peut contenir des champs entre guillemets, des virgules dans les champs, etc.
   static List<String> parseLine(String line, {String delimiter = ','}) {
-    if (line.isEmpty) return [];
-    
-    final List<String> result = [];
-    bool inQuotes = false;
-    StringBuffer currentField = StringBuffer();
-    
-    for (int i = 0; i < line.length; i++) {
-      final char = line[i];
-      
-      // Gérer les guillemets
-      if (char == '"') {
-        // Double guillemet à l'intérieur d'un champ entre guillemets
-        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
-          currentField.write('"');
-          i++; // Sauter le guillemet suivant
-        } else {
-          // Basculer l'état "dans les guillemets"
-          inQuotes = !inQuotes;
-        }
-      } 
-      // Gérer les délimiteurs (virgules par défaut)
-      else if (char == delimiter && !inQuotes) {
-        result.add(currentField.toString());
-        currentField = StringBuffer();
-      } 
-      // Ajouter le caractère au champ actuel
-      else {
-        currentField.write(char);
-      }
-    }
-    
-    // Vérifier si les guillemets sont bien fermés
-    if (inQuotes) {
-      _logger.warning('Guillemets non fermés dans la ligne CSV: "$line"');
-    }
-    
-    // Ajouter le dernier champ
-    result.add(currentField.toString());
-    
-    return result;
+    return CsvUtils.parseLine(line, delimiter: delimiter);
   }
 
   /// Encode une liste de champs en ligne CSV
   static String encodeLine(List<String> fields, {String delimiter = ','}) {
-    return fields.map((field) {
-      // Si le champ contient des délimiteurs, des guillemets ou des sauts de ligne,
-      // l'entourer de guillemets et doubler les guillemets internes
-      if (field.contains('"') || field.contains(delimiter) || field.contains('\n')) {
-        return '"${field.replaceAll('"', '""')}"';
-      }
-      return field;
-    }).join(delimiter);
+    return CsvUtils.encodeLine(fields, delimiter: delimiter);
   }
-  
-  /// Détecte automatiquement le délimiteur d'un fichier CSV (virgule, point-virgule, tabulation)
-  /// Retourne ',' par défaut si ne peut pas être déterminé
+
+  /// Détecte automatiquement le délimiteur d'un fichier CSV
   static String detectDelimiter(String csvContent) {
-    if (csvContent.isEmpty) return ',';
-    
-    // Extraire la première ligne du fichier
-    final firstLine = csvContent.split('\n').first;
-    
-    // Liste des délimiteurs courants à tester
-    final possibleDelimiters = [',', ';', '\t', '|'];
-    int maxCount = 0;
-    String detectedDelimiter = ',';
-    
-    // Compter les occurrences de chaque délimiteur dans la première ligne
-    for (final delimiter in possibleDelimiters) {
-      // Compter en évitant les délimiteurs dans des champs entre guillemets
-      bool inQuotes = false;
-      int count = 0;
-      
-      for (int i = 0; i < firstLine.length; i++) {
-        final char = firstLine[i];
-        if (char == '"') {
-          inQuotes = !inQuotes;
-        } else if (char == delimiter && !inQuotes) {
-          count++;
-        }
-      }
-      
-      if (count > maxCount) {
-        maxCount = count;
-        detectedDelimiter = delimiter;
-      }
-    }
-    
-    _logger.info('Délimiteur CSV détecté: "$detectedDelimiter"');
-    return detectedDelimiter;
+    return CsvUtils.detectDelimiter(csvContent);
   }
-  
+
   /// Parse le contenu complet d'un fichier CSV et crée des cartes
   /// Retourne un CsvImportResult avec les cartes créées et les erreurs
   static Future<CsvImportResult> parseCsvToCards(String csvContent, {

@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
-import 'dart:io';
-import '../models/flashcard.dart';
-import '../services/database_helper.dart';
-import '../accessibility_manager.dart';
-import '../theme_manager.dart';
+import 'package:projet/features/flashcards/models/flashcard.dart';
+import 'package:projet/services/database_helper.dart'; // Correction de l'import
+import 'package:projet/core/accessibility/accessibility_manager.dart';
+import 'package:projet/core/theme/theme_manager.dart';
 import '../utils/logger.dart';
+import '../shared/widgets/animated_gradient_background.dart';
+import '../features/quiz/widgets/quiz_card_view.dart';
+import '../features/quiz/widgets/quiz_result_view.dart';
+import '../features/quiz/widgets/quiz_state_view.dart';
+import '../features/quiz/helpers/quiz_audio_helper.dart';
+import '../features/quiz/helpers/quiz_loader_helper.dart';
+import '../features/quiz/helpers/quiz_shortcuts_helper.dart';
 
 class QuizView extends StatefulWidget {
   final String? category;
@@ -38,10 +43,26 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadCards();
+    QuizLoaderHelper.loadCards(context, widget.category, setState, _logger, _setCardsState);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_quizFocusNode);
     });
+  }
+
+  void _setCardsState(List<Flashcard> cards) {
+    setState(() {
+      _cards = cards;
+      _current = 0;
+      _score = 0;
+      _showAnswer = false;
+      _finished = false;
+      _isLoading = false;
+      _timeSpentPerCard.clear();
+      _startTimerForCurrentCard();
+    });
+    if (_cards.isNotEmpty) {
+      QuizAudioHelper.preloadAudioIfAvailable(_cards[0], _audioPlayer, _logger);
+    }
   }
 
   @override
@@ -57,64 +78,6 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
     _quizFocusNode.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  Future<void> _loadCards() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final db = Provider.of<DatabaseHelper>(context, listen: false);
-      final List<Flashcard> cardsToLearn;
-
-      if (widget.category != null) {
-        cardsToLearn = await db.getCardsByCategory(widget.category!);
-      } else {
-        cardsToLearn = await db.getUnknownCards();
-      }
-
-      cardsToLearn.shuffle();
-
-      setState(() {
-        _cards = cardsToLearn;
-        _current = 0;
-        _score = 0;
-        _showAnswer = false;
-        _finished = false;
-        _isLoading = false;
-        _timeSpentPerCard.clear();
-        _startTimerForCurrentCard();
-      });
-
-      _logger.info('Quiz démarré avec ${cardsToLearn.length} cartes${widget.category != null ? ' dans la catégorie ${widget.category}' : ''}');
-
-      if (_cards.isNotEmpty) {
-        _preloadAudioIfAvailable(_cards[0]);
-      }
-    } catch (e) {
-      _logger.error('Erreur lors du chargement des cartes pour le quiz: $e');
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Erreur lors du chargement des cartes: $e';
-      });
-    }
-  }
-
-  Future<void> _preloadAudioIfAvailable(Flashcard card) async {
-    if (card.audioPath != null && card.audioPath!.isNotEmpty) {
-      try {
-        final file = File(card.audioPath!);
-        if (await file.exists()) {
-          await _audioPlayer.setFilePath(card.audioPath!);
-        } else {
-          _logger.warning('Fichier audio non trouvé: ${card.audioPath}');
-        }
-      } catch (e) {
-        _logger.error('Erreur lors du préchargement audio: $e');
-      }
-    }
   }
 
   void _startTimerForCurrentCard() {
@@ -147,7 +110,7 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
         _showAnswer = false;
         _startTimerForCurrentCard();
         if (_current < _cards.length - 1) {
-          _preloadAudioIfAvailable(_cards[_current]);
+          QuizAudioHelper.preloadAudioIfAvailable(_cards[_current], _audioPlayer, _logger);
         }
       } else {
         _finished = true;
@@ -161,8 +124,7 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
   Future<void> _updateCardStatus(Flashcard card, bool isKnown) async {
     try {
       final db = Provider.of<DatabaseHelper>(context, listen: false);
-      final updatedCard = card.copyWith(isKnown: isKnown);
-      await db.updateCard(updatedCard);
+      await db.updateCard(card.copyWith(isKnown: isKnown));
     } catch (e) {
       _logger.error('Erreur lors de la mise à jour du statut de la carte: $e');
     }
@@ -184,32 +146,7 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
   }
 
   Future<void> _playAudio() async {
-    if (_cards.isEmpty || _current >= _cards.length) return;
-
-    final card = _cards[_current];
-    if (card.audioPath == null || card.audioPath!.isEmpty) {
-      return;
-    }
-
-    try {
-      final file = File(card.audioPath!);
-      if (await file.exists()) {
-        await _audioPlayer.setFilePath(card.audioPath!);
-        await _audioPlayer.play();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fichier audio introuvable')),
-        );
-        _logger.warning('Fichier audio non trouvé: ${card.audioPath}');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la lecture audio')),
-      );
-      _logger.error('Erreur lors de la lecture audio: $e');
-    }
-
-    FocusScope.of(context).requestFocus(_quizFocusNode);
+    await QuizAudioHelper.playAudio(_cards, _current, _audioPlayer, context, _logger, _quizFocusNode);
   }
 
   @override
@@ -222,41 +159,43 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
     Color goodColor = accessibility.daltonianModeEnabled ? Colors.blue : Colors.green;
     Color badColor = accessibility.daltonianModeEnabled ? Colors.orange : Colors.red;
 
-    final Map<ShortcutActivator, Intent> shortcuts = {
-      const SingleActivator(LogicalKeyboardKey.space): VoidCallbackIntent(_revealAnswer),
-      const SingleActivator(LogicalKeyboardKey.keyA): VoidCallbackIntent(_playAudio),
-      const SingleActivator(LogicalKeyboardKey.arrowRight): VoidCallbackIntent(() => _answer(true)),
-      const SingleActivator(LogicalKeyboardKey.keyG): VoidCallbackIntent(() => _answer(true)),
-      const SingleActivator(LogicalKeyboardKey.arrowLeft): VoidCallbackIntent(() => _answer(false)),
-      const SingleActivator(LogicalKeyboardKey.keyB): VoidCallbackIntent(() => _answer(false)),
-      const SingleActivator(LogicalKeyboardKey.escape): VoidCallbackIntent(() => Navigator.pop(context)),
-    };
+    final Map<ShortcutActivator, Intent> shortcuts = QuizShortcutsHelper.getShortcuts(
+      _revealAnswer, _playAudio, () => _answer(true), () => _answer(false), () => Navigator.pop(context)
+    );
 
     return Shortcuts(
       shortcuts: shortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
-          VoidCallbackIntent: CallbackAction<VoidCallbackIntent>(
-            onInvoke: (VoidCallbackIntent intent) => intent.callback(),
+          QuizVoidCallbackIntent: CallbackAction<QuizVoidCallbackIntent>(
+            onInvoke: (QuizVoidCallbackIntent intent) => intent.callback(),
           ),
         },
         child: Focus(
           focusNode: _quizFocusNode,
           autofocus: true,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(widget.category != null
-                  ? 'Quiz - ${widget.category}'
-                  : 'Quiz'),
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.refresh),
-                  tooltip: 'Recommencer',
-                  onPressed: () => _loadCards(),
+          child: Stack(
+            children: [
+              const AnimatedGradientBackground(),
+              Scaffold(
+                backgroundColor: Colors.transparent,
+                appBar: AppBar(
+                  title: Text(widget.category != null
+                      ? 'Quiz - ${widget.category}'
+                      : 'Quiz', style: TextStyle(fontFamily: 'Orbitron')),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  actions: [
+                    IconButton(
+                      icon: Icon(Icons.refresh),
+                      tooltip: 'Recommencer',
+                      onPressed: () => QuizLoaderHelper.loadCards(context, widget.category, setState, _logger, _setCardsState),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            body: _buildBody(fontSize, accentColor, goodColor, badColor),
+                body: _buildBody(fontSize, accentColor, goodColor, badColor),
+              ),
+            ],
           ),
         ),
       ),
@@ -264,207 +203,59 @@ class _QuizViewState extends State<QuizView> with WidgetsBindingObserver {
   }
 
   Widget _buildBody(double fontSize, Color accentColor, Color goodColor, Color badColor) {
-    if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: accentColor),
-            SizedBox(height: 16),
-            Text('Chargement des cartes...', style: TextStyle(fontSize: fontSize)),
-          ],
-        ),
+    // Show loading or error state
+    if (_isLoading || _errorMessage != null || _cards.isEmpty) {
+      return QuizStateView(
+        isLoading: _isLoading,
+        errorMessage: _errorMessage,
+        finished: _finished,
+        cards: _cards,
+        current: _current,
+        score: _score,
+        showAnswer: _showAnswer,
+        fontSize: fontSize,
+        accentColor: accentColor,
+        category: widget.category,
+        onRetry: () => QuizLoaderHelper.loadCards(context, widget.category, setState, _logger, _setCardsState),
+        onBack: () => Navigator.pop(context),
+        onRestart: () => QuizLoaderHelper.loadCards(context, widget.category, setState, _logger, _setCardsState),
+        onExit: () => Navigator.pop(context),
+        onRevealAnswer: _revealAnswer,
+        onPlayAudio: _playAudio,
+        onAnswer: _answer,
       );
     }
 
-    if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 48),
-            SizedBox(height: 16),
-            Text('Erreur', style: TextStyle(fontSize: fontSize + 4, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text(_errorMessage!, style: TextStyle(fontSize: fontSize)),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => _loadCards(),
-              child: Text('Réessayer', style: TextStyle(fontSize: fontSize)),
-              style: ElevatedButton.styleFrom(backgroundColor: accentColor),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_cards.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.green, size: 48),
-            SizedBox(height: 16),
-            Text('Aucune carte à réviser${widget.category != null ? ' dans ${widget.category}' : ''}.',
-                style: TextStyle(fontSize: fontSize + 2)),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Retour', style: TextStyle(fontSize: fontSize)),
-              style: ElevatedButton.styleFrom(backgroundColor: accentColor),
-            ),
-          ],
-        ),
-      );
-    }
-
+    // Show quiz results
     if (_finished) {
-      return Center(
-        child: Container(
-          constraints: BoxConstraints(maxWidth: 500),
-          child: Card(
-            elevation: 4,
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Quiz terminé !', style: TextStyle(fontSize: fontSize + 8, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 16),
-                  Text(
-                    'Score : $_score / ${_cards.length}',
-                    style: TextStyle(fontSize: fontSize + 12, color: accentColor),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    '${(_score / _cards.length * 100).toStringAsFixed(1)}%',
-                    style: TextStyle(fontSize: fontSize + 16, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    icon: Icon(Icons.refresh),
-                    label: Text('Recommencer', style: TextStyle(fontSize: fontSize)),
-                    style: ElevatedButton.styleFrom(backgroundColor: accentColor),
-                    onPressed: _loadCards,
-                  ),
-                  SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('Retour à l\'accueil', style: TextStyle(fontSize: fontSize)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+      return QuizResultView(
+        score: _score,
+        total: _cards.length,
+        accentColor: accentColor,
+        fontSize: fontSize,
+        onRestart: () => QuizLoaderHelper.loadCards(context, widget.category, setState, _logger, _setCardsState),
+        onExit: () => Navigator.pop(context),
       );
     }
 
+    // Show current card
     final card = _cards[_current];
-    return Center(
-      child: Container(
-        constraints: BoxConstraints(maxWidth: 600),
-        child: Card(
-          elevation: 4,
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: (_current + 1) / _cards.length,
-                  backgroundColor: Colors.grey[200],
-                  valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Carte ${_current + 1}/${_cards.length}',
-                  style: TextStyle(fontSize: fontSize - 2, color: Colors.grey[600]),
-                ),
-                SizedBox(height: 24),
-                Text(
-                  card.front,
-                  style: TextStyle(fontSize: fontSize + 8, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 16),
-                if (card.audioPath != null && card.audioPath!.isNotEmpty)
-                  Container(
-                    margin: EdgeInsets.symmetric(vertical: 8),
-                    child: ElevatedButton.icon(
-                      icon: Icon(Icons.volume_up),
-                      label: Text('Écouter (A)', style: TextStyle(fontSize: fontSize - 2)),
-                      onPressed: _playAudio,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[800],
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      ),
-                    ),
-                  ),
-                Divider(height: 36),
-                if (_showAnswer)
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: accentColor.withAlpha(26), // Remplacement de withOpacity(0.1) par withAlpha(26) (environ 10% d'opacité)
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: accentColor, width: 1),
-                    ),
-                    child: Text(
-                      card.back,
-                      style: TextStyle(fontSize: fontSize + 4, color: accentColor),
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                else
-                  ElevatedButton(
-                    onPressed: _revealAnswer,
-                    child: Text('Voir la réponse (Espace)', style: TextStyle(fontSize: fontSize)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                  ),
-                SizedBox(height: 24),
-                if (_showAnswer)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: Icon(Icons.check, color: Colors.white),
-                          label: Text('Je savais (→ ou G)', style: TextStyle(fontSize: fontSize - 1)),
-                          style: ElevatedButton.styleFrom(backgroundColor: goodColor),
-                          onPressed: () => _answer(true),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: Icon(Icons.close, color: Colors.white),
-                          label: Text('À revoir (← ou B)', style: TextStyle(fontSize: fontSize - 1)),
-                          style: ElevatedButton.styleFrom(backgroundColor: badColor),
-                          onPressed: () => _answer(false),
-                        ),
-                      ),
-                    ],
-                  ),
-                SizedBox(height: 16),
-                Text(
-                  'Score actuel : $_score / $_current',
-                  style: TextStyle(fontSize: fontSize - 2, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return QuizCardView(
+      card: card,
+      showAnswer: _showAnswer,
+      progress: (_current + 1) / _cards.length,
+      score: _score,
+      total: _cards.length,
+      fontSize: fontSize,
+      accentColor: accentColor,
+      onRevealAnswer: _revealAnswer,
+      onPlayAudio: _playAudio,
+      onAnswer: _answer,
     );
   }
 }
 
-class VoidCallbackIntent extends Intent {
+class QuizVoidCallbackIntent extends Intent {
   final VoidCallback callback;
-  const VoidCallbackIntent(this.callback);
+  const QuizVoidCallbackIntent(this.callback);
 }

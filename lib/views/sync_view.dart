@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:projet/services/database_helper.dart';
+import 'package:projet/features/sync/services/sync_types.dart';
 import '../services/sync_service.dart';
-import '../services/database_helper.dart';
 import '../services/firebase_manager.dart';
 import '../utils/logger.dart';
+import '../features/sync/helpers/sync_stat_grid.dart';
+import '../features/sync/helpers/sync_info_row.dart';
 
 class SyncView extends StatefulWidget {
   @override
@@ -39,7 +42,7 @@ class _SyncViewState extends State<SyncView> {
 
   @override
   void dispose() {
-    _syncEventSubscription.cancel();
+    _syncEventSubscription?.cancel();
     super.dispose();
   }
 
@@ -72,8 +75,8 @@ class _SyncViewState extends State<SyncView> {
           break;
           
         case SyncEventType.uploadProgress:
-          _statusMessage = event.message ?? 'Envoi en cours...';
-          _progress = 0.1 + (event.progress ?? 0) * 0.4; // 10-50%
+          _statusMessage = event.message;
+          _progress = 0.1 + ((event.progress ?? 0.0) * 0.4); // 10-50%
           break;
           
         case SyncEventType.downloadStarted:
@@ -82,8 +85,8 @@ class _SyncViewState extends State<SyncView> {
           break;
           
         case SyncEventType.downloadProgress:
-          _statusMessage = event.message ?? 'Téléchargement en cours...';
-          _progress = 0.5 + (event.progress ?? 0) * 0.4; // 50-90%
+          _statusMessage = event.message;
+          _progress = 0.5 + ((event.progress ?? 0.0) * 0.4); // 50-90%
           break;
           
         case SyncEventType.completed:
@@ -324,60 +327,14 @@ class _SyncViewState extends State<SyncView> {
   }
   
   Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label),
-        Text(value, style: TextStyle(fontWeight: FontWeight.bold)),
-      ],
-    );
+    return SyncInfoRow(label: label, value: value);
   }
   
   Widget _buildStatGrid() {
     if (_syncStats['stats'] == null) {
       return Text('Aucune statistique disponible');
     }
-    
     final stats = _syncStats['stats'];
-    final Map<String, String> displayStats = {
-      'Ajoutées': '${stats['added']}',
-      'Mises à jour': '${stats['updated']}',
-      'Supprimées localement': '${stats['deletedLocally']}',
-      'Supprimées à distance': '${stats['deletedRemote']}',
-      'Conflits (version locale gardée)': '${stats['conflictsLocalWins']}',
-      'Ignorées (inchangées)': '${stats['skippedUnchanged']}',
-      'Erreurs': '${stats['errors']}',
-    };
-    
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 3,
-      ),
-      itemCount: displayStats.length,
-      itemBuilder: (context, index) {
-        final entry = displayStats.entries.elementAt(index);
-        return Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(entry.key),
-              Text(
-                entry.value, 
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: entry.key.contains('Erreurs') && entry.value != '0'
-                      ? Colors.red
-                      : null,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    return SyncStatGrid(stats: stats);
   }
 }

@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:collection';
 import 'dart:convert';
-import '../services/database_helper.dart';
 import '../services/firebase_manager.dart';
 import '../utils/logger.dart';
-import '../models/flashcard.dart';
+import '../features/flashcards/models/flashcard.dart';
+import '../features/sync/services/sync_types.dart';
+import 'package:projet/services/database_helper.dart';
 
 /// Service responsible for bidirectional synchronization between local SQLite database
 /// and remote Firebase Firestore. Implements reliable sync mechanisms with conflict
@@ -264,11 +265,11 @@ class SyncService {
     try {
       for (final remoteCard in remoteCards) {
         // Récupérer la version locale si elle existe
-        final localCard = remoteCard.id != null ? await _db.getCardById(remoteCard.id!) : null;
+        final localCard = remoteCard.id != null ? await _db.getCard(id: remoteCard.id) : null;
 
         if (localCard == null) {
           // Pas de conflit, juste insérer la carte distante
-          await _db.insertCard(remoteCard);
+          await _db.saveCard(remoteCard);
         } else if ((remoteCard.modifiedAt ?? 0) > (localCard.modifiedAt ?? 0)) {
           // La version distante est plus récente
           await _db.updateCard(remoteCard);
@@ -318,7 +319,7 @@ class SyncService {
   /// Charge les timestamps de dernière synchronisation depuis le stockage persistant
   Future<void> _loadSyncTimestamps() async {
     try {
-      final timestamps = await _db.getMetadata('sync_timestamps');
+      final timestamps = await _db.getMetadataValue('sync_timestamps');
       if (timestamps != null) {
         _lastSyncTimestamps = Map<String, int>.from(
           jsonDecode(timestamps) as Map,
@@ -335,7 +336,7 @@ class SyncService {
   /// Enregistre les timestamps de dernière synchronisation dans le stockage persistant
   Future<void> _saveSyncTimestamps() async {
     try {
-      await _db.setMetadata('sync_timestamps', jsonEncode(_lastSyncTimestamps));
+      await _db.setMetadataValue('sync_timestamps', jsonEncode(_lastSyncTimestamps));
       _logger.debug('Saved sync timestamps');
     } catch (e) {
       _logger.error('Failed to save sync timestamps: $e');
@@ -382,17 +383,6 @@ class SyncService {
   void dispose() {
     _syncEventController.close();
   }
-}
-
-/// Exception thrown when sync service encounters errors
-class SyncServiceException implements Exception {
-  final String message;
-  final dynamic cause;
-
-  SyncServiceException(this.message, [this.cause]);
-
-  @override
-  String toString() => 'SyncServiceException: $message${cause != null ? ', cause: $cause' : ''}';
 }
 
 /// Represents an individual sync operation
@@ -482,53 +472,4 @@ class _Semaphore {
       _currentCount = math.min(_currentCount + 1, _maxCount);
     }
   }
-}
-
-/// Type of sync events emitted during synchronization
-enum SyncEventType {
-  started,
-  progress,
-  completed,
-  cancelled,
-  error,
-  uploadStarted,
-  uploadProgress,
-  downloadStarted,
-  downloadProgress,
-  completedWithErrors,
-  failed,
-}
-
-/// Event emitted during synchronization
-class SyncEvent {
-  final SyncEventType type;
-  final String message;
-  final Map<String, dynamic>? details;
-  double? get progress => details != null && details!.containsKey('percent') ? (details!['percent'] as num?)?.toDouble() : null;
-  SyncEvent(this.type, this.message, [this.details]);
-}
-
-/// Result of a sync operation
-class SyncResult {
-  final bool success;
-  final String message;
-  final int syncedItems;
-  final int conflictsResolved;
-  final int? syncDuration;
-
-  SyncResult({
-    required this.success,
-    required this.message,
-    required this.syncedItems,
-    required this.conflictsResolved,
-    this.syncDuration,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'success': success,
-    'message': message,
-    'syncedItems': syncedItems,
-    'conflictsResolved': conflictsResolved,
-    'syncDuration': syncDuration,
-  };
 }

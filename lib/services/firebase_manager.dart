@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/flashcard.dart';
+import 'package:projet/features/flashcards/models/flashcard.dart';
 import '../config/firebase_config.dart';
 import 'dart:async';
 import 'package:collection/collection.dart';

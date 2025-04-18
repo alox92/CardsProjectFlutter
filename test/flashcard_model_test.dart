@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:projet/models/flashcard.dart';
+import 'package:projet/features/flashcards/models/flashcard.dart';
 
 void main() {
   group('Flashcard Model Tests', () {

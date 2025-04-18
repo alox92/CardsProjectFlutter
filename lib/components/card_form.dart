@@ -1,0 +1,1 @@
+// Ce fichier est un doublon, à supprimer. Utiliser shared/widgets/card_form.dart ou features/flashcards/widgets/card_form.dart selon le projet.
