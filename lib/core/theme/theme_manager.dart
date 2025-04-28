@@ -276,6 +276,6 @@ class ThemeManager with ChangeNotifier {
     final newG = g + ((255 - g) * factor).round();
     final newB = b + ((255 - b) * factor).round();
     
-    return Color.fromARGB(color.a, newR.round(), newG.round(), newB.round());
+    return Color.fromARGB(color.a, newR, newG, newB);
   }
 }

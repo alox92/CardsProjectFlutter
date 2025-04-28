@@ -44,7 +44,7 @@ class _AudioControlsWidgetState extends State<AudioControlsWidget> {
         final appDir = await getApplicationDocumentsDirectory();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final String filePath = '${appDir.path}/recording_$timestamp.m4a';
-        await _recorder.start();
+        await _recorder.start(path: filePath);
         setState(() {
           _isRecording = true;
           _recordDuration = Duration.zero;
