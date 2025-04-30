@@ -5,9 +5,7 @@ import 'package:provider/provider.dart';
 class AccessibilityDialog extends StatelessWidget {
   const AccessibilityDialog({Key? key}) : super(key: key);
 
-  static Future<void> show({
-    required BuildContext context,
-  }) {
+  static Future<void> show({required BuildContext context}) {
     return showDialog(
       context: context,
       builder: (context) => AccessibilityDialog(),
@@ -17,50 +15,51 @@ class AccessibilityDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accessibilityManager = Provider.of<AccessibilityManager>(context);
-    
+
     return AlertDialog(
       title: Text('Accessibilité'),
       content: StatefulBuilder(
-        builder: (context, setState) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SwitchListTile(
-              title: Text('Mode daltonien'),
-              value: accessibilityManager.daltonianModeEnabled,
-              onChanged: (enabled) {
-                if (enabled) {
-                  accessibilityManager.enableDaltonianMode();
-                } else {
-                  accessibilityManager.disableDaltonianMode();
-                }
-              },
+        builder:
+            (context, setState) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  title: Text('Mode daltonien'),
+                  value: accessibilityManager.daltonianModeEnabled,
+                  onChanged: (enabled) {
+                    if (enabled) {
+                      accessibilityManager.enableDaltonianMode();
+                    } else {
+                      accessibilityManager.disableDaltonianMode();
+                    }
+                  },
+                ),
+                SwitchListTile(
+                  title: Text('VoiceOver (macOS)'),
+                  value: accessibilityManager.voiceOverEnabled,
+                  onChanged: (v) {
+                    if (v) {
+                      accessibilityManager.enableVoiceOver();
+                    } else {
+                      accessibilityManager.disableVoiceOver();
+                    }
+                    setState(() {});
+                  },
+                ),
+                SwitchListTile(
+                  title: Text('TalkBack (Windows/Android)'),
+                  value: accessibilityManager.talkBackEnabled,
+                  onChanged: (v) {
+                    if (v) {
+                      accessibilityManager.enableTalkBack();
+                    } else {
+                      accessibilityManager.disableTalkBack();
+                    }
+                    setState(() {});
+                  },
+                ),
+              ],
             ),
-            SwitchListTile(
-              title: Text('VoiceOver (macOS)'),
-              value: accessibilityManager.voiceOverEnabled,
-              onChanged: (v) {
-                if (v) {
-                  accessibilityManager.enableVoiceOver();
-                } else {
-                  accessibilityManager.disableVoiceOver();
-                }
-                setState(() {});
-              },
-            ),
-            SwitchListTile(
-              title: Text('TalkBack (Windows/Android)'),
-              value: accessibilityManager.talkBackEnabled,
-              onChanged: (v) {
-                if (v) {
-                  accessibilityManager.enableTalkBack();
-                } else {
-                  accessibilityManager.disableTalkBack();
-                }
-                setState(() {});
-              },
-            ),
-          ],
-        ),
       ),
       actions: [
         TextButton(
